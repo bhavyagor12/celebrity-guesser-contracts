@@ -1,47 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {CategoryGuessedNFT} from "./CategoryGuessedNFT.sol";
+
 contract GuessTheCharacter {
     address public owner;
-    uint256 public baseEntryFee = 0.001 ether; // ~ $2 equivalent in ETH
-    uint256 private nextGameId = 1;
-
-    enum Difficulty {
-        Easy,
-        Medium,
-        Hard
-    }
+    uint256 public baseEntryFee = 0.001 ether;
+    CategoryGuessedNFT public nftContract;
 
     struct Game {
-        uint256 gameId;
         address player;
-        Difficulty difficulty;
         uint256 entryFee;
         bool isActive;
     }
 
-    mapping(uint256 => Game) public games;
-    mapping(address => uint256[]) public playerGames;
-    mapping(Difficulty => uint256) public rewardMultipliers;
+    mapping(address => Game) public games;
 
-    event GameStarted(
-        uint256 indexed gameId,
-        address indexed player,
-        Difficulty difficulty,
-        uint256 entryFee
-    );
-    event GameWon(
-        uint256 indexed gameId,
-        address indexed player,
-        uint256 reward
-    );
-    event GameLost(uint256 indexed gameId, address indexed player);
+    event GameStarted(address indexed player, uint256 entryFee);
+    event GameWon(address indexed player, uint256 reward, string category);
+    event GameLost(address indexed player);
 
-    constructor() {
+    constructor(address payable _nftContract) {
         owner = msg.sender;
-        rewardMultipliers[Difficulty.Easy] = 150; // 1.5x
-        rewardMultipliers[Difficulty.Medium] = 125; // 1.25x
-        rewardMultipliers[Difficulty.Hard] = 111; // 1.11x
+        nftContract = CategoryGuessedNFT(_nftContract);
     }
 
     modifier onlyOwner() {
@@ -49,88 +30,50 @@ contract GuessTheCharacter {
         _;
     }
 
-    modifier gameExists(uint256 gameId) {
-        require(games[gameId].gameId == gameId, "Game does not exist");
+    modifier onlyActiveGame(address player) {
+        require(games[player].isActive, "No active game");
         _;
     }
 
-    modifier onlyActiveGame(uint256 gameId) {
-        require(games[gameId].isActive, "Game is not active");
-        _;
-    }
-
-    function startGame(
-        Difficulty _difficulty
-    ) external payable returns (uint256) {
+    function startGame() external payable {
         require(msg.value >= baseEntryFee, "Insufficient entry fee");
 
-        uint256 gameId = nextGameId;
-        nextGameId++;
-
-        games[gameId] = Game({
-            gameId: gameId,
+        games[msg.sender] = Game({
             player: msg.sender,
-            difficulty: _difficulty,
             entryFee: msg.value,
             isActive: true
         });
 
-        playerGames[msg.sender].push(gameId);
-
-        emit GameStarted(gameId, msg.sender, _difficulty, msg.value);
-
-        return gameId;
+        emit GameStarted(msg.sender, msg.value);
     }
 
     function resolveGame(
-        uint256 gameId,
-        bool won
-    ) external onlyOwner gameExists(gameId) onlyActiveGame(gameId) {
-        Game storage game = games[gameId];
+        address player,
+        bool won,
+        string memory category // Pass category name
+    ) external onlyOwner onlyActiveGame(player) {
+        Game storage game = games[player];
 
         if (won) {
-            uint256 reward = (game.entryFee *
-                rewardMultipliers[game.difficulty]) / 100;
+            uint256 reward = (game.entryFee * 125) / 100; // 1.25x
             require(
                 address(this).balance >= reward,
                 "Contract balance insufficient"
             );
-            (bool success, ) = payable(game.player).call{value: reward}("");
+
+            (bool success, ) = payable(player).call{value: reward}("");
             require(success, "Transfer failed");
-            emit GameWon(gameId, game.player, reward);
+
+            // Mint NFT to winner
+            nftContract.mintCategoryGuessedNFT(player, category);
+
+            emit GameWon(player, reward, category);
         } else {
-            emit GameLost(gameId, game.player);
+            emit GameLost(player);
         }
 
         game.isActive = false;
     }
-
-    function getPlayerActiveGames(
-        address player
-    ) external view returns (uint256[] memory) {
-        uint256[] memory activeGameIds = new uint256[](
-            playerGames[player].length
-        );
-        uint256 count = 0;
-
-        for (uint256 i = 0; i < playerGames[player].length; i++) {
-            uint256 gameId = playerGames[player][i];
-            if (games[gameId].isActive) {
-                activeGameIds[count] = gameId;
-                count++;
-            }
-        }
-
-        // Resize array to actual active games count
-        uint256[] memory result = new uint256[](count);
-        for (uint256 i = 0; i < count; i++) {
-            result[i] = activeGameIds[i];
-        }
-
-        return result;
-    }
-
-    function fundContract() external payable onlyOwner {}
 
     function withdrawFunds(uint256 amount) external onlyOwner {
         require(amount <= address(this).balance, "Insufficient balance");

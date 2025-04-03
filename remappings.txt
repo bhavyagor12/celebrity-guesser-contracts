@@ -1,0 +1,1 @@
+@lukso/=lib/lsp-smart-contracts/contracts/
