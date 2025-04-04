@@ -50,7 +50,8 @@ contract GuessTheCharacter {
     function resolveGame(
         address player,
         bool won,
-        string memory category // Pass category name
+        string memory category,
+        string memory svg
     ) external onlyOwner onlyActiveGame(player) {
         Game storage game = games[player];
 
@@ -65,7 +66,7 @@ contract GuessTheCharacter {
             require(success, "Transfer failed");
 
             // Mint NFT to winner
-            nftContract.mintCategoryGuessedNFT(player, category);
+            nftContract.mintCategoryGuessedNFT(player, category, svg);
 
             emit GameWon(player, reward, category);
         } else {

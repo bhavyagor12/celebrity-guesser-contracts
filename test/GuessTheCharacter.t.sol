@@ -70,7 +70,7 @@ contract GuessTheCharacterTest is Test {
         console.log("Contract owner: %s", guessTheCharacter.owner());
         // Prank as owner before calling resolveGame
         vm.prank(owner);
-        guessTheCharacter.resolveGame(player, true, category);
+        guessTheCharacter.resolveGame(player, true, category,"");
 
         // Check if the game is marked inactive
         (, , bool isActive) = guessTheCharacter.games(player);
@@ -82,7 +82,7 @@ contract GuessTheCharacterTest is Test {
         guessTheCharacter.startGame{value: baseEntryFee}();
 
         vm.prank(owner);
-        guessTheCharacter.resolveGame(player, false, category);
+        guessTheCharacter.resolveGame(player, false, category,"");
 
         (, , bool isActive) = guessTheCharacter.games(player);
         assertFalse(isActive);
@@ -94,7 +94,7 @@ contract GuessTheCharacterTest is Test {
 
         vm.prank(player);
         vm.expectRevert("Not authorized");
-        guessTheCharacter.resolveGame(player, true, category);
+        guessTheCharacter.resolveGame(player, true, category,"");
     }
 
     function testWithdrawFunds() public {

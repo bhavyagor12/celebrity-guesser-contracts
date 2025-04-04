@@ -13,11 +13,18 @@ contract DeployScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy CategoryGuessedNFT first
-        CategoryGuessedNFT nftContract = new CategoryGuessedNFT(msg.sender);
+        address deployer = vm.addr(deployerPrivateKey);
 
-        // Deploy GuessTheCharacter with the address of the NFT contract
-        new GuessTheCharacter(payable(address(nftContract)));
+        CategoryGuessedNFT nftContract = new CategoryGuessedNFT(deployer);
+
+        GuessTheCharacter guessTheCharacterContract = new GuessTheCharacter(
+            payable(address(nftContract))
+        );
+
+        vm.stopBroadcast(); // End previous broadcast
+        vm.startBroadcast(deployerPrivateKey); // Restart with deployer
+
+        nftContract.transferOwnership(address(guessTheCharacterContract));
 
         vm.stopBroadcast();
     }
